@@ -15,10 +15,8 @@
 -- kind of GUI programs or generate standalone vector and bitmap images.
 
 module Graphics.HsPlot (
-  Layer(..), Geometry(..),
-  --geomLine, geomPoint,
-  plot,
-  tupleAes,
+  Aesthetics(..), Layer(..), Geometry(..),
+  plot, aes,
   renderToPNG
 )
 where
@@ -27,50 +25,48 @@ import Control.Applicative
 import Control.Monad
 import Graphics.Rendering.Cairo
 
-data Plot a = Plot { points :: a
+data Plot a = Plot { points :: [a]
                    , layers :: [Layer a]
                    , scaleX :: Scale
                    , scaleY :: Scale
                    }
 
-data Layer a = Layer { geom :: Geometry
-                     , aes :: Aesthetics a
+data Layer a = Layer { geometry :: Geometry
+                     , aesthetics :: Aesthetics a
                      }
 
 type Scale = Double -> Double
 
-data Aesthetics a = Aesthetics { x :: a -> [Double]
-                               , y :: a -> [Double]
-                               , color :: a -> [Color]
-                               , size :: a -> [Double]
-                               , shape :: a -> [Shape]
+data Aesthetics a = Aesthetics { x :: a -> Double
+                               , y :: a -> Double
+                               , colour :: a -> Colour
+                               , size :: a -> Double
+                               , shape :: a -> Shape
                                }
 
-tupleAes :: Aesthetics [(Double,Double)]
-tupleAes = Aesthetics (map fst) (map snd) (map $ const black) (map $ const 2) (map $ const Circle)
-  where black = (0,0,0)
-
+aes :: Aesthetics a
+aes = Aesthetics { x = const 0
+                 , y = const 0
+                 , colour = const (0,0,0)
+                 , size = const 2
+                 , shape = const Circle
+                 }
 
 data Geometry = Point | Line
 
 data Shape = Circle | Square
 
-type Color = (Double,Double,Double)
+type Colour = (Double,Double,Double)
 
-plot :: [(Double,Double)] -> [Layer [(Double,Double)]] -> Plot [(Double,Double)]
+plot :: [a] -> [Layer a] -> Plot a
 plot p l = Plot p l xscale yscale
-  where xscale = (/(xmax-xmin)) . (subtract xmin)
-        yscale = (/(ymax-ymin)) . (subtract ymin)
-        xmin = minimum $ minimum . flip x p . aes <$> l
-        ymin = minimum $ minimum . flip y p . aes <$> l
-        xmax = maximum $ maximum . flip x p . aes <$> l
-        ymax = maximum $ maximum . flip y p . aes <$> l
-
-{-geomPoint :: [Double] -> [Double] -> Layer
-geomPoint xs ys = Layer Point (zip xs ys)
-
-geomLine :: [Double] -> [Double] -> Layer
-geomLine xs ys = Layer Line (zip xs ys)-}
+  where xscale = (/(xmax-xmin)) . subtract xmin
+        yscale = (/(ymax-ymin)) . subtract ymin
+        xmin = mma minimum x
+        ymin = mma minimum y
+        xmax = mma maximum x
+        ymax = mma maximum y
+        mma m i = m $ m . (<$> p) . i . aesthetics <$> l
 
 renderToPNG :: FilePath -> Plot a -> IO ()
 renderToPNG f p =
@@ -88,10 +84,10 @@ drawBackground = do
   paint
 
 drawLayer :: Double -> Double -> Plot a -> Layer a -> Render ()
-drawLayer w h p (Layer Point a) = drawPoints $ zip3 (map ((*w) . scaleX p) $ x a $ points p) (map ((*h) . scaleY p) $ y a $ points p) (color a $ points p)
+drawLayer w h p (Layer Point a) = drawPoints $ zip3 (map ((*w) . scaleX p . x a) $ points p) (map ((*h) . scaleY p . y a) $ points p) (colour a <$> points p)
 drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
-drawPoints :: [(Double,Double,Color)] -> Render ()
+drawPoints :: [(Double,Double,Colour)] -> Render ()
 drawPoints pts = do
   liftIO $ putStrLn $ "Drawing points " ++ show pts
   forM_ pts $ \(x,y,(r,g,b)) -> do
