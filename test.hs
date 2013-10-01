@@ -2,7 +2,6 @@
 
 import Control.Applicative
 import Control.Monad
-import System.IO.Unsafe
 
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
@@ -14,7 +13,7 @@ import Graphics.HsPlot
 
 data Diamond = Diamond { carat :: Double
                        , cut :: Cut
-                       , colour :: Colour
+                       , colour' :: Colour
                        , clarity :: Clarity
                        , depth :: Double
                        , table :: Double
@@ -25,9 +24,7 @@ data Diamond = Diamond { carat :: Double
                        }
 instance FromRecord Diamond where
   parseRecord v | V.length v == 11 = Diamond <$> v.!1 <*> v.!2 <*> v.!3 <*> v.!4 <*> v.!5 <*> v.!6 <*> v.!7 <*> v.!8 <*> v.!9 <*> v.!10
-                | otherwise = unsafePerformIO $ do
-                    putStrLn $ "V.length is " ++ show (V.length v)
-                    return mzero
+                | otherwise = mzero
 
 data Cut = Fair | Good | VeryGood | Premium | Ideal
 instance FromField Cut where
@@ -68,4 +65,4 @@ main = do
   Right v <- decode True <$> BS.readFile "diamonds.csv"
   renderToPNG "hsplot.png" $ plot (V.toList v) layers
 
-layers = [Layer Point $ aes {x=carat, y=(realToFrac . price)}]
+layers = [Layer Point $ aes {x=carat, y=(realToFrac . price), colour=const (0, 0, 0, 1/100)}]

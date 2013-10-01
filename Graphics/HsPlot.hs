@@ -47,7 +47,7 @@ data Aesthetics a = Aesthetics { x :: a -> Double
 aes :: Aesthetics a
 aes = Aesthetics { x = const 0
                  , y = const 0
-                 , colour = const (0,0,0)
+                 , colour = const (0,0,0,1)
                  , size = const 2
                  , shape = const Circle
                  }
@@ -56,7 +56,7 @@ data Geometry = Point | Line
 
 data Shape = Circle | Square
 
-type Colour = (Double,Double,Double)
+type Colour = (Double,Double,Double,Double)
 
 plot :: [a] -> [Layer a] -> Plot a
 plot p l = Plot p l xscale yscale
@@ -89,9 +89,9 @@ drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
 drawPoints :: [(Double,Double,Colour)] -> Render ()
 drawPoints pts =
-  forM_ pts $ \(x,y,(r,g,b)) -> do
+  forM_ pts $ \(x,y,(r,g,b,a)) -> do
     arc x y 3 0 (2*pi)
-    setSourceRGB r g b
+    setSourceRGBA r g b a
     fill
 
 {-
