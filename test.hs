@@ -64,5 +64,4 @@ instance FromField Clarity where
 main = do
   Right v <- decode True <$> BS.readFile "diamonds.csv"
   renderToPNG "hsplot.png" $ plot (V.toList v) layers
-
-layers = [Layer Point $ aes {x=carat, y=(realToFrac . price), colour=const (0, 0, 0, 1/100)}]
+  where layers = [Layer Point $ aes {x=carat, y=(realToFrac . price)}]
