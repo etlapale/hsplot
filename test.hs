@@ -2,6 +2,7 @@
 
 import Control.Applicative
 import Control.Monad
+import Data.List
 
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
@@ -27,39 +28,26 @@ instance FromRecord Diamond where
                 | otherwise = mzero
 
 data Cut = Fair | Good | VeryGood | Premium | Ideal
+  deriving Enum
 instance FromField Cut where
-  parseField s | s == "Fair" = pure Fair
-               | s == "Good" = pure Good
-               | s == "Very Good" = pure VeryGood
-               | s == "Premium" = pure Premium
-               | s == "Ideal" = pure Ideal
-               | otherwise = mzero
+  parseField = enumToField ["Fair", "Good", "Very Good", "Premium", "Ideal"]
 
 data Colour = D | E | F | G | H | I | J
+  deriving Enum
 instance FromField Colour where
-  parseField s | s == "D" = pure D
-               | s == "E" = pure E
-               | s == "F" = pure F
-               | s == "G" = pure G
-               | s == "H" = pure H
-               | s == "I" = pure I
-               | s == "J" = pure J
-               | otherwise = mzero
+  parseField = enumToField ["D","E", "F", "G", "H", "I", "J"]
 
 data Clarity = I3 | I2 | I1 | SI2 | SI1 | VS2 | VS1 | VVS2 | VVS1 | IF | FL
+  deriving Enum
 instance FromField Clarity where
-  parseField s | s == "I3" = pure I3
-               | s == "I2" = pure I2
-               | s == "I1" = pure I1
-               | s == "SI2" = pure SI2
-               | s == "SI1" = pure SI1
-               | s == "VS2" = pure VS2
-               | s == "VS1" = pure VS1
-               | s == "VVS2" = pure VVS2
-               | s == "VVS1" = pure VVS1
-               | s == "IF" = pure IF
-               | s == "FL" = pure FL
-               | otherwise = mzero
+  parseField = enumToField ["I3", "I2", "I1", "SI2", "SI1", "VS2", "VS1",
+                            "VVS2", "VVS1", "IF", "FL"]
+
+enumToField :: Enum a => [Field] -> Field -> Parser a
+enumToField n s = case elemIndex s n of
+                    Just x -> pure $ toEnum x
+                    Nothing -> mzero
+
 
 main = do
   Right v <- decode True <$> BS.readFile "diamonds.csv"
