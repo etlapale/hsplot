@@ -88,8 +88,7 @@ drawLayer w h p (Layer Point a) = drawPoints $ zip3 (map ((*w) . scaleX p . x a)
 drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
 drawPoints :: [(Double,Double,Colour)] -> Render ()
-drawPoints pts = do
-  liftIO $ putStrLn $ "Drawing points " ++ show pts
+drawPoints pts =
   forM_ pts $ \(x,y,(r,g,b)) -> do
     arc x y 3 0 (2*pi)
     setSourceRGB r g b
