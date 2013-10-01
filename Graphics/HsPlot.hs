@@ -61,7 +61,7 @@ type Colour = (Double,Double,Double,Double)
 plot :: [a] -> [Layer a] -> Plot a
 plot p l = Plot p l xscale yscale
   where xscale = (/(xmax-xmin)) . subtract xmin
-        yscale = (/(ymax-ymin)) . subtract ymin
+        yscale = (1-) . (/(ymax-ymin)) . subtract ymin
         xmin = mma minimum x
         ymin = mma minimum y
         xmax = mma maximum x
