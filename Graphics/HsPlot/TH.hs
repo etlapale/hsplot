@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Graphics.HsPlot.TH (
-  deriveFromField, enumToField, nameToField
+  deriveFromField, deriveFromRecord, enumToField, nameToField
 )
 where
 
@@ -39,3 +39,17 @@ deriveFromField t = do
        |]
   let [InstanceD [] (AppT s (ConT _)) [ValD p _ []]] = d
   return [InstanceD [] (AppT s (ConT t)) [ValD p (NormalB etf) []]]
+
+deriveFromRecord :: Name -> Q [Dec]
+deriveFromRecord t = do
+  TyConI (DataD _ _ _ [RecC _ fs] _) <- reify t
+  -- Make sure every field is an instance of FromField
+  ffs <- mapM ensureFromField fs
+  -- Make the record an instance of FromRecord
+  return $ concat ffs
+  where ensureFromField (_,_,ConT n) = do
+          isinst <- isInstance ''FromField [ConT n]
+          if isinst
+          then return []
+          else deriveFromField n
+        ensureFromField _ = return []  -- Not yet supported
