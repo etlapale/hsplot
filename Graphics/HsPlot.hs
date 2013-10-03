@@ -139,7 +139,7 @@ drawBackground = do
   paint
 
 drawLayer :: Double -> Double -> Plot a -> Layer a -> Render ()
-drawLayer w h p (Layer Point a) = drawPoints $ zip3 (map ((*w) . (scaleMap $ scaleX p) . x a) $ points p) (map ((*h) . (scaleMap $ scaleY p) . y a) $ points p) (colour a <$> points p)
+drawLayer w h p (Layer Point a) = drawPoints $ zip3 (map ((*w) . scaleMap (scaleX p) . x a) $ points p) (map ((*h) . scaleMap (scaleY p) . y a) $ points p) (colour a <$> points p)
 drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
 drawPoints :: [(Double,Double,Colour)] -> Render ()

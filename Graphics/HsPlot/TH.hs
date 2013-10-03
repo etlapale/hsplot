@@ -13,12 +13,16 @@ import System.IO.Unsafe
 
 import Data.Csv (Field, FromField, Parser, parseField)
 
-import qualified Data.ByteString.Char8 as BS8 (pack)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 
 enumToField :: Enum a => [Field] -> Field -> Parser a
-enumToField n s = case elemIndex s n of
-                    Just x -> pure $ toEnum x
-                    Nothing -> mzero
+enumToField ns n =
+  case (BS8.filter notSpace n) `elemIndex` ns of
+    Just x -> pure $ toEnum x
+    Nothing -> mzero
+  where notSpace ' ' = False
+        notSpace _   = True
 
 nameToField :: Name -> Exp
 nameToField n = AppE (VarE 'BS8.pack) (LitE (StringL $ nameBase n))
