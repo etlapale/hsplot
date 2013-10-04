@@ -22,7 +22,10 @@ module Graphics.HsPlot (
 where
 
 import Control.Applicative
-import Control.Monad
+--import Control.Monad
+import Data.Foldable (Foldable, forM_, minimum, maximum, toList)
+import Data.Traversable
+import Prelude hiding (minimum, maximum)
 import System.IO.Unsafe
 
 import Graphics.Rendering.Cairo
@@ -31,14 +34,14 @@ import Graphics.HsPlot.Algorithms
 import Graphics.HsPlot.Colours
 
 
-data Plot a x y c s h = Plot { points :: [a]
-                             , layers :: [Layer a x y c s h]
-                             , scaleX :: Scale x Double
-                             , scaleY :: Scale y Double
-                             , scaleC :: Scale c Colour
-                             --, scaleS :: Scale s Double
-                             --, scaleH :: Scale h Shape
-                             }
+data Plot f a x y c s h = Plot { points :: f a
+                               , layers :: [Layer a x y c s h]
+                               , scaleX :: Scale x Double
+                               , scaleY :: Scale y Double
+                               , scaleC :: Scale c Colour
+                               --, scaleS :: Scale s Double
+                               --, scaleH :: Scale h Shape
+                               }
 
 data Layer a x y c s h = Layer { geometry :: Geometry
                                , aesthetics :: Aesthetics a x y c s h
@@ -73,25 +76,38 @@ type Colour = (Double,Double,Double)
 
 
 -- |Construct a Plot for the given dataset and layers.
-plot :: (Ord x, NiceNum x, Real x, Enum x,
+plot :: (Foldable f, Applicative f,
+         Ord x, NiceNum x, Real x, Enum x,
          Ord y, NiceNum y, Real y, Enum y,
          Ord c, Enum c
          )
-     => [a] -> [Layer a x y c s h] -> Plot a x y c s h
+     => f a -> [Layer a x y c s h] -> Plot f a x y c s h
 plot p l = Plot p l xscale yscale cscale
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
         cscale = Scale cmin cmax [cmin..cmax] colorScheme
-        xmin = mma minimum x
-        ymin = mma minimum y
-        xmax = mma maximum x
-        ymax = mma maximum y
-        cmin = mma minimum colour
-        cmax = mma maximum colour
-        mma m i = m $ m . (<$> p) . i . aesthetics <$> l
+        xmin = mma minimum minimum x
+        xmax = mma maximum maximum x
+        ymin = mma minimum minimum y
+        ymax = mma maximum maximum y
+        cmin = mma minimum minimum colour
+        cmax = mma maximum maximum colour
+        --mma m i = m $ m . (<$> p) . i . aesthetics <$> l
+        mma m m' i = mma' p l m m' i
         --colorScheme c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin),1)
         colorScheme c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin)
 
+
+mma' :: (Applicative f, Foldable f, Ord n, Applicative f', Foldable f')
+     => f a
+     -> f' (Layer a x y c s h)
+     -> (f n -> n)
+     -> (f' n -> n)
+     -> (Aesthetics a x y c s h -> a -> n)
+     -> n
+mma' p l m m' i = m' $ fmap (m . (<$> p) . i . aesthetics) l
+        --mma m i = m $ m . (<$> p) . i . aesthetics <$> l
+        
 niceLinearRange :: (NiceNum x, Real x, Enum x, Fractional t)
                 => x -> x -> Scale x t
 niceLinearRange min max = Scale { scaleMin = min
@@ -107,7 +123,8 @@ reverseScaleMap :: Num t => Scale x t -> Scale x t
 reverseScaleMap s = s { scaleMap = (1-) . scaleMap s }
 
 
-renderToPNG :: (Show x, Show y) => FilePath -> Plot a x y c s h -> IO ()
+renderToPNG :: (Applicative f, Traversable f, Show x, Show y)
+            => FilePath -> Plot f a x y c s h -> IO ()
 renderToPNG f p =
   withImageSurface FormatARGB32 w h $ \s -> do
     renderWith s $ render w h p
@@ -115,8 +132,10 @@ renderToPNG f p =
   where w = 600
         h = 400
     
-render :: (Show x, Show y) => Int -> Int -> Plot a x y c s h -> Render ()
+render :: (Applicative f, Traversable f, Show x, Show y)
+       => Int -> Int -> Plot f a x y c s h -> Render ()
 render w h p = do
+  liftIO $ print "Render"
   drawBackground
 
   -- Draw the layers
@@ -135,6 +154,7 @@ render w h p = do
   stroke
 
   -- Ticks
+  liftIO $ print "Ticks"
   setSourceRGBA 0.2 0.2 0.2 1
   forM_ (scaleTicks $ scaleX p) $ \x -> do
     moveTo (lw * (realToFrac ((scaleMap $ scaleX p) x) :: Double)) lh
@@ -180,21 +200,25 @@ drawBackground = do
   setSourceRGB 1 1 1
   paint
 
-drawLayer :: Double -> Double -> Plot a x y c s h -> Layer a x y c s h -> Render ()
+drawLayer :: (Traversable f, Applicative f)
+          => Double -> Double -> Plot f a x y c s h -> Layer a x y c s h -> Render ()
 drawLayer w h p (Layer Point a) =
-  drawPoints $ zip3 (map ((*w) . scaleMap (scaleX p) . x a) $ points p)
-                    (map ((*h) . scaleMap (scaleY p) . y a) $ points p)
-                    (map (scaleMap (scaleC p) . colour a) $ points p)
+  drawPoints $ tZip3 (fmap ((*w) . scaleMap (scaleX p) . x a) $ points p)
+                     (fmap ((*h) . scaleMap (scaleY p) . y a) $ points p)
+                     (fmap (scaleMap (scaleC p) . colour a) $ points p)
 drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
-drawPoints :: [(Double,Double,Colour)] -> Render ()
+tZip3 :: Traversable f => f a -> f b -> f c -> [(a,b,c)]
+tZip3 m n p = zip3 (toList m) (toList n) (toList p)
+
+drawPoints :: Foldable f => f (Double,Double,Colour) -> Render ()
 drawPoints pts =
   forM_ pts $ \(x,y,(r,g,b)) -> do
     arc x y 2 0 (2*pi)
     setSourceRGB r g b
     fill
 
-drawLines :: [(Double,Double)] -> Render ()
+{-drawLines :: Foldable f => f (Double,Double) -> Render ()
 drawLines ((x,y):p) = do
   moveTo (10*x) (10*y)
   lines p
@@ -202,4 +226,4 @@ drawLines ((x,y):p) = do
   setLineWidth 1
   stroke
   where lines ((x,y):p) = lineTo (10*x) (10*y) >> lines p
-        lines [] = return ()
+        lines [] = return ()-}
