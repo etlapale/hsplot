@@ -10,7 +10,7 @@
 -- Graphical plotting algorithms.
 
 module Graphics.HsPlot.Algorithms (
-  niceNum, niceRange
+  NiceNum, niceRange
 )
 where
 
@@ -51,7 +51,7 @@ niceInteger x = niceFrac * (10 ^ expo)
                  | otherwise = 10
 
 -- |Return a nice range and tick spacing for a given interval.
-niceRange :: (RealFrac a, NiceNum a) => a -> a -> (a,a,a)
+niceRange :: (NiceNum a, Real a) => a -> a -> (a,a,a)
 niceRange min max = (niceMin,niceMax,spacing)
   where niceMin = spacing * niceFloor (realToFrac min / realToFrac spacing)
         niceMax = spacing * niceCeiling (realToFrac max / realToFrac spacing)
