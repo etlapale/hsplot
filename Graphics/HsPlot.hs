@@ -17,7 +17,7 @@
 module Graphics.HsPlot (
   Aesthetics(..), Geometry(..), Layer(..), Plot(..),
   aes, plot,
-  renderToPNG
+  render, renderToPNG
 )
 where
 
@@ -30,35 +30,38 @@ import Graphics.Rendering.Cairo
 import Graphics.HsPlot.Algorithms
 
 
-data Plot a = Plot { points :: [a]
-                   , layers :: [Layer a]
-                   , scaleX :: Scale
-                   , scaleY :: Scale
-                   }
+data Plot a x y c s h = Plot { points :: [a]
+                             , layers :: [Layer a x y c s h]
+                             , scaleX :: Scale x Double
+                             , scaleY :: Scale y Double
+                             , scaleC :: Scale c Colour
+                             --, scaleS :: Scale s Double
+                             --, scaleH :: Scale h Shape
+                             }
 
-data Layer a = Layer { geometry :: Geometry
-                     , aesthetics :: Aesthetics a
-                     }
-
-data Scale = Scale { scaleMin   :: Double
-                   , scaleMax   :: Double
-                   , scaleTicks :: [Double]
-                   , scaleMap   :: Double -> Double
-                   }
-
-data Aesthetics a = Aesthetics { x :: a -> Double
-                               , y :: a -> Double
-                               , colour :: a -> Colour
-                               , size :: a -> Double
-                               , shape :: a -> Shape
+data Layer a x y c s h = Layer { geometry :: Geometry
+                               , aesthetics :: Aesthetics a x y c s h
                                }
 
-aes :: Aesthetics a
+data Scale x t = Scale { scaleMin   :: x
+                       , scaleMax   :: x
+                       , scaleTicks :: [x]
+                       , scaleMap   :: x -> t
+                       }
+
+data Aesthetics a x y c s h = Aesthetics { x :: a -> x
+                                         , y :: a -> y
+                                         , colour :: a -> c
+                                         , size :: a -> s
+                                         , shape :: a -> h
+                                         }
+
+aes :: (Num x, Num y, Num c, Num s, Num h) => Aesthetics a x y c s h
 aes = Aesthetics { x = const 0
                  , y = const 0
-                 , colour = const (0,0,0,1)
-                 , size = const 2
-                 , shape = const Circle
+                 , colour = const 0
+                 , size = const 0
+                 , shape = const 0
                  }
 
 data Geometry = Point | Line
@@ -69,30 +72,40 @@ type Colour = (Double,Double,Double,Double)
 
 
 -- |Construct a Plot for the given dataset and layers.
-plot :: [a] -> [Layer a] -> Plot a
-plot p l = Plot p l xscale yscale
+plot :: (Ord x, NiceNum x, Real x, Enum x,
+         Ord y, NiceNum y, Real y, Enum y,
+         Ord c, Enum c
+         )
+     => [a] -> [Layer a x y c s h] -> Plot a x y c s h
+plot p l = Plot p l xscale yscale cscale
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
+        cscale = Scale cmin cmax [cmin..cmax] colorScheme
         xmin = mma minimum x
         ymin = mma minimum y
         xmax = mma maximum x
         ymax = mma maximum y
+        cmin = mma minimum colour
+        cmax = mma maximum colour
         mma m i = m $ m . (<$> p) . i . aesthetics <$> l
+        colorScheme c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin),1)
 
-niceLinearRange :: Double -> Double -> Scale
+niceLinearRange :: (NiceNum x, Real x, Enum x, Fractional t)
+                => x -> x -> Scale x t
 niceLinearRange min max = Scale { scaleMin = min
                                 , scaleMax = max
                                 , scaleTicks = ticks
-                                , scaleMap = (/(max-min)) . subtract min
+                                , scaleMap = (/(realToFrac $ max-min)) . realToFrac . subtract min
                                 }
   where (niceMin,niceMax,niceSpacing) = niceRange min max
         ticks = filter (>=min) $ takeWhile (<=max) [niceMin + niceSpacing * i | i <- [0..]]
 
-reverseScaleMap :: Scale -> Scale
+
+reverseScaleMap :: Num t => Scale x t -> Scale x t
 reverseScaleMap s = s { scaleMap = (1-) . scaleMap s }
 
 
-renderToPNG :: FilePath -> Plot a -> IO ()
+renderToPNG :: FilePath -> Plot a x y c s h -> IO ()
 renderToPNG f p =
   withImageSurface FormatARGB32 w h $ \s -> do
     renderWith s $ render w h p
@@ -100,7 +113,7 @@ renderToPNG f p =
   where w = 600
         h = 400
     
-render :: Int -> Int -> Plot a -> Render ()
+render :: Int -> Int -> Plot a x y c s h -> Render ()
 render w h p = do
   drawBackground
 
@@ -118,7 +131,7 @@ render w h p = do
 
   -- Ticks
   forM_ (scaleTicks $ scaleX p) $ \x -> do
-    moveTo (lw * (scaleMap $ scaleX p) x) lh
+    moveTo (lw * (realToFrac ((scaleMap $ scaleX p) x) :: Double)) lh
     relLineTo 0 (-tickSize)
   forM_ (scaleTicks $ scaleY p) $ \y -> do
     moveTo 0 (lh * (scaleMap $ scaleY p) y)
@@ -138,8 +151,11 @@ drawBackground = do
   setSourceRGB 1 1 1
   paint
 
-drawLayer :: Double -> Double -> Plot a -> Layer a -> Render ()
-drawLayer w h p (Layer Point a) = drawPoints $ zip3 (map ((*w) . scaleMap (scaleX p) . x a) $ points p) (map ((*h) . scaleMap (scaleY p) . y a) $ points p) (colour a <$> points p)
+drawLayer :: Double -> Double -> Plot a x y c s h -> Layer a x y c s h -> Render ()
+drawLayer w h p (Layer Point a) =
+  drawPoints $ zip3 (map ((*w) . scaleMap (scaleX p) . x a) $ points p)
+                    (map ((*h) . scaleMap (scaleY p) . y a) $ points p)
+                    (map (scaleMap (scaleC p) . colour a) $ points p)
 drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
 drawPoints :: [(Double,Double,Colour)] -> Render ()
@@ -149,7 +165,6 @@ drawPoints pts =
     setSourceRGBA r g b a
     fill
 
-{-
 drawLines :: [(Double,Double)] -> Render ()
 drawLines ((x,y):p) = do
   moveTo (10*x) (10*y)
@@ -159,4 +174,3 @@ drawLines ((x,y):p) = do
   stroke
   where lines ((x,y):p) = lineTo (10*x) (10*y) >> lines p
         lines [] = return ()
--}

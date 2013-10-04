@@ -12,6 +12,7 @@ import Graphics.HsPlot
 import Graphics.HsPlot.TH
 
 data Cut = Fair | Good | VeryGood | Premium | Ideal
+  deriving (Eq, Enum, Ord)
 data Colour = D | E | F | G | H | I | J
 data Clarity = I3 | I2 | I1 | SI2 | SI1 | VS2 | VS1 | VVS2 | VVS1 | IF | FL
 data Diamond = Diamond { carat :: Double
@@ -30,5 +31,4 @@ $(deriveFromRecordOffset ''Diamond 1)
 main = do
   Right v <- decode True <$> BS.readFile "dsmall.csv"
   renderToPNG "hsplot.png" $ plot (V.toList v) layers
-  --where layers = [Layer Point $ aes {x=carat, y=realToFrac . price}]
-  where layers = [Layer Point $ aes {x=carat, y=(\p -> x' p * y' p * z' p)}]
+  where layers = [Layer Point $ aes {x=carat, y=price, colour=cut}]
