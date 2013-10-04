@@ -107,7 +107,7 @@ reverseScaleMap :: Num t => Scale x t -> Scale x t
 reverseScaleMap s = s { scaleMap = (1-) . scaleMap s }
 
 
-renderToPNG :: FilePath -> Plot a x y c s h -> IO ()
+renderToPNG :: (Show x, Show y) => FilePath -> Plot a x y c s h -> IO ()
 renderToPNG f p =
   withImageSurface FormatARGB32 w h $ \s -> do
     renderWith s $ render w h p
@@ -115,23 +115,27 @@ renderToPNG f p =
   where w = 600
         h = 400
     
-render :: Int -> Int -> Plot a x y c s h -> Render ()
+render :: (Show x, Show y) => Int -> Int -> Plot a x y c s h -> Render ()
 render w h p = do
   drawBackground
 
   -- Draw the layers
+  rectangle ofx 0 lw lh
+  clip
   translate ofx 0
   forM_ (layers p) $ drawLayer lw lh p
+  resetClip
 
   -- Axes
   moveTo 0.5 0.5
   relLineTo 0 lh
   relLineTo lw 0
-  setSourceRGB 0 0 0
+  setSourceRGBA 0.3 0.3 0.3 1
   setLineWidth 1
   stroke
 
   -- Ticks
+  setSourceRGBA 0.2 0.2 0.2 1
   forM_ (scaleTicks $ scaleX p) $ \x -> do
     moveTo (lw * (realToFrac ((scaleMap $ scaleX p) x) :: Double)) lh
     relLineTo 0 (-tickSize)
@@ -140,13 +144,36 @@ render w h p = do
     relLineTo tickSize 0
   setLineWidth 2
   stroke
+
+  -- Tick labels
+  setSourceRGBA 0.2 0.2 0.2 1
+  selectFontFace "Sans" FontSlantNormal FontWeightNormal
+  setFontSize 10
+  ftExt <- fontExtents
+  let ascent = fontExtentsAscent ftExt
+  forM_ (scaleTicks $ scaleX p) $ \x -> do
+    moveTo (lw * (realToFrac ((scaleMap $ scaleX p) x) :: Double)) (lh + ascent + xticksmargin)
+    let tickLabel = show x
+    tExt <- textExtents tickLabel
+    relMoveTo (-textExtentsWidth tExt/2) 0
+    showText tickLabel
+  forM_ (scaleTicks $ scaleY p) $ \y -> do
+    moveTo 0 (lh * (scaleMap $ scaleY p) y)
+    let tickLabel = show y
+    tExt <- textExtents tickLabel
+    relMoveTo (-textExtentsWidth tExt - yticksmargin) (textExtentsHeight tExt / 2)
+    showText tickLabel
+  fill
+
   translate (-ofx) 0
 
-  where ofx = 20
-        ofy = 20
+  where ofx = 40
+        ofy = 30
         lw = realToFrac w - ofx
         lh = realToFrac h - ofy
         tickSize = 5
+        xticksmargin = tickSize/2    -- Vertical margin on top of tick labels
+        yticksmargin = tickSize      -- Horizontal margin right of tick labels
 
 drawBackground :: Render ()
 drawBackground = do
