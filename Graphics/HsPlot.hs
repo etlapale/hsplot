@@ -28,6 +28,7 @@ import System.IO.Unsafe
 import Graphics.Rendering.Cairo
 
 import Graphics.HsPlot.Algorithms
+import Graphics.HsPlot.Colours
 
 
 data Plot a x y c s h = Plot { points :: [a]
@@ -68,7 +69,7 @@ data Geometry = Point | Line
 
 data Shape = Circle | Square
 
-type Colour = (Double,Double,Double,Double)
+type Colour = (Double,Double,Double)
 
 
 -- |Construct a Plot for the given dataset and layers.
@@ -88,7 +89,8 @@ plot p l = Plot p l xscale yscale cscale
         cmin = mma minimum colour
         cmax = mma maximum colour
         mma m i = m $ m . (<$> p) . i . aesthetics <$> l
-        colorScheme c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin),1)
+        --colorScheme c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin),1)
+        colorScheme c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin)
 
 niceLinearRange :: (NiceNum x, Real x, Enum x, Fractional t)
                 => x -> x -> Scale x t
@@ -160,9 +162,9 @@ drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
 drawPoints :: [(Double,Double,Colour)] -> Render ()
 drawPoints pts =
-  forM_ pts $ \(x,y,(r,g,b,a)) -> do
+  forM_ pts $ \(x,y,(r,g,b)) -> do
     arc x y 2 0 (2*pi)
-    setSourceRGBA r g b a
+    setSourceRGB r g b
     fill
 
 drawLines :: [(Double,Double)] -> Render ()
