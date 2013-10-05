@@ -36,18 +36,18 @@ import Graphics.HsPlot.Algorithms
 import Graphics.HsPlot.Colours
 
 
-data Plot f a x y c s h = Plot { points :: f a
-                               , layers :: [Layer a x y c s h]
-                               , scaleX :: Scale x Double
-                               , scaleY :: Scale y Double
-                               , scaleC :: Scale c Colour
-                               --, scaleS :: Scale s Double
-                               --, scaleH :: Scale h Shape
-                               }
+data Plot f a x y c p s h = Plot { points :: f a
+                                 , layers :: [Layer a x y c p s h]
+                                 , scaleX :: Scale x Double
+                                 , scaleY :: Scale y Double
+                                 , scaleC :: Scale c Colour
+                                 --, scaleS :: Scale s Double
+                                 --, scaleH :: Scale h Shape
+                                 }
 
-data Layer a x y c s h = Layer { geometry :: Geometry
-                               , aesthetics :: Aesthetics a x y c s h
-                               }
+data Layer a x y c p s h = Layer { geometry :: Geometry
+                                 , aesthetics :: Aesthetics a x y c p s h
+                                 }
 
 data Scale x t = Scale { scaleMin   :: x
                        , scaleMax   :: x
@@ -55,17 +55,19 @@ data Scale x t = Scale { scaleMin   :: x
                        , scaleMap   :: x -> t
                        }
 
-data Aesthetics a x y c s h = Aesthetics { x :: a -> x
-                                         , y :: a -> y
-                                         , colour :: a -> c
-                                         , size :: a -> s
-                                         , shape :: a -> h
-                                         }
+data Aesthetics a x y c p s h = Aesthetics { x :: a -> x
+                                           , y :: a -> y
+                                           , colour :: a -> c
+                                           , alpha :: a -> p
+                                           , size :: a -> s
+                                           , shape :: a -> h
+                                           }
 
-aes :: (Num x, Num y, Num c, Num s, Num h) => Aesthetics a x y c s h
+aes :: (Num x, Num y, Num c, Num p, Num s, Num h) => Aesthetics a x y c p s h
 aes = Aesthetics { x = const 0
                  , y = const 0
                  , colour = const 0
+                 , alpha = const 1
                  , size = const 0
                  , shape = const 0
                  }
@@ -83,7 +85,7 @@ plot :: (Applicative f, Traversable f,
          Ord y, NiceNum y, Real y, Enum y,
          Ord c, Enum c
          )
-     => f a -> [Layer a x y c s h] -> Plot f a x y c s h
+     => f a -> [Layer a x y c p s h] -> Plot f a x y c p s h
 plot p l = Plot p l xscale yscale cscale
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
@@ -101,9 +103,9 @@ plot p l = Plot p l xscale yscale cscale
 -- A typical usage would be to find the minimum or the maximum.
 mma :: (Applicative f, Traversable f, Ord n)
     => f a
-    -> [Layer a x y c s h]
+    -> [Layer a x y c p s h]
     -> (forall t j. (Traversable t, Ord j) => (t j -> j))
-    -> (Aesthetics a x y c s h -> a -> n)
+    -> (Aesthetics a x y c p s h -> a -> n)
     -> n
 mma p l m i = m $ fmap (m . (<$> p) . i . aesthetics) l
         
@@ -123,16 +125,14 @@ reverseScaleMap s = s { scaleMap = (1-) . scaleMap s }
 
 
 renderToPNG :: (Applicative f, Traversable f, Show x, Show y)
-            => FilePath -> Plot f a x y c s h -> IO ()
-renderToPNG f p =
+            => Int -> Int -> FilePath -> Plot f a x y c p s h -> IO ()
+renderToPNG w h f p =
   withImageSurface FormatARGB32 w h $ \s -> do
     renderWith s $ render w h p
     surfaceWriteToPNG s f
-  where w = 600
-        h = 400
     
 render :: (Applicative f, Traversable f, Show x, Show y)
-       => Int -> Int -> Plot f a x y c s h -> Render ()
+       => Int -> Int -> Plot f a x y c p s h -> Render ()
 render w h p = do
   drawBackground
 
@@ -198,7 +198,7 @@ drawBackground = do
   paint
 
 drawLayer :: (Traversable f, Applicative f)
-          => Double -> Double -> Plot f a x y c s h -> Layer a x y c s h -> Render ()
+          => Double -> Double -> Plot f a x y c p s h -> Layer a x y c p s h -> Render ()
 drawLayer w h p (Layer Point a) =
   drawPoints $ tZip3 (fmap ((*w) . scaleMap (scaleX p) . x a) $ points p)
                      (fmap ((*h) . scaleMap (scaleY p) . y a) $ points p)
@@ -211,7 +211,7 @@ tZip3 m n p = zip3 (toList m) (toList n) (toList p)
 drawPoints :: Foldable f => f (Double,Double,Colour) -> Render ()
 drawPoints pts =
   forM_ pts $ \(x,y,(r,g,b)) -> do
-    arc x y 2 0 (2*pi)
+    arc x y 3 0 (2*pi)
     setSourceRGB r g b
     fill
 
