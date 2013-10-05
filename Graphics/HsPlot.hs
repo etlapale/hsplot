@@ -14,6 +14,8 @@
 -- for Haskell. The Cairo backend allows to integrate HsPlot into various
 -- kind of GUI programs or generate standalone vector and bitmap images.
 
+{-# LANGUAGE RankNTypes #-}
+
 module Graphics.HsPlot (
   Aesthetics(..), Geometry(..), Layer(..), Plot(..),
   aes, plot,
@@ -76,7 +78,7 @@ type Colour = (Double,Double,Double)
 
 
 -- |Construct a Plot for the given dataset and layers.
-plot :: (Foldable f, Applicative f,
+plot :: (Applicative f, Traversable f,
          Ord x, NiceNum x, Real x, Enum x,
          Ord y, NiceNum y, Real y, Enum y,
          Ord c, Enum c
@@ -86,27 +88,24 @@ plot p l = Plot p l xscale yscale cscale
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
         cscale = Scale cmin cmax [cmin..cmax] colorScheme
-        xmin = mma minimum minimum x
-        xmax = mma maximum maximum x
-        ymin = mma minimum minimum y
-        ymax = mma maximum maximum y
-        cmin = mma minimum minimum colour
-        cmax = mma maximum maximum colour
-        --mma m i = m $ m . (<$> p) . i . aesthetics <$> l
-        mma m m' i = mma' p l m m' i
+        xmin = mma p l minimum x
+        xmax = mma p l maximum x
+        ymin = mma p l minimum y
+        ymax = mma p l maximum y
+        cmin = mma p l minimum colour
+        cmax = mma p l maximum colour
         --colorScheme c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin),1)
         colorScheme c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin)
 
-
-mma' :: (Applicative f, Foldable f, Ord n, Applicative f', Foldable f')
-     => f a
-     -> f' (Layer a x y c s h)
-     -> (f n -> n)
-     -> (f' n -> n)
-     -> (Aesthetics a x y c s h -> a -> n)
-     -> n
-mma' p l m m' i = m' $ fmap (m . (<$> p) . i . aesthetics) l
-        --mma m i = m $ m . (<$> p) . i . aesthetics <$> l
+-- |Find a specific element accross multiple layers.
+-- A typical usage would be to find the minimum or the maximum.
+mma :: (Applicative f, Traversable f, Ord n)
+    => f a
+    -> [Layer a x y c s h]
+    -> (forall t j. (Traversable t, Ord j) => (t j -> j))
+    -> (Aesthetics a x y c s h -> a -> n)
+    -> n
+mma p l m i = m $ fmap (m . (<$> p) . i . aesthetics) l
         
 niceLinearRange :: (NiceNum x, Real x, Enum x, Fractional t)
                 => x -> x -> Scale x t
@@ -135,7 +134,6 @@ renderToPNG f p =
 render :: (Applicative f, Traversable f, Show x, Show y)
        => Int -> Int -> Plot f a x y c s h -> Render ()
 render w h p = do
-  liftIO $ print "Render"
   drawBackground
 
   -- Draw the layers
@@ -154,7 +152,6 @@ render w h p = do
   stroke
 
   -- Ticks
-  liftIO $ print "Ticks"
   setSourceRGBA 0.2 0.2 0.2 1
   forM_ (scaleTicks $ scaleX p) $ \x -> do
     moveTo (lw * (realToFrac ((scaleMap $ scaleX p) x) :: Double)) lh
