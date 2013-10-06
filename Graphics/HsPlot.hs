@@ -97,7 +97,7 @@ plot p l = Plot p l xscale yscale cscale
         cmin = mma p l minimum colour
         cmax = mma p l maximum colour
         --colorScheme c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin),1)
-        colorScheme c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin)
+        colorScheme c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin + 1)
 
 -- |Find a specific element accross multiple layers.
 -- A typical usage would be to find the minimum or the maximum.
