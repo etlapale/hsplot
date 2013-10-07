@@ -11,8 +11,8 @@ xyz2rgb x y z = (f r, f g, f b)
         b =  0.055648 * x - 0.204043 * y + 1.057311 * z
         f = f' . (/y'n)
         y'n = 100
-        f' x | x <= 0.0031308 = 12.92 * x
-             | otherwise      = 1.055 * (x**(1/2.4)) - 0.055
+        f' v | v <= 0.0031308 = 12.92 * v
+             | otherwise      = 1.055 * (v**(1/2.4)) - 0.055
 
 -- | Convert a CIE LUV colour to CIE XYZ.
 -- Note that we fix the L* discontinuity at 8 instead of
