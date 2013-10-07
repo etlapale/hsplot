@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 module Graphics.HsPlot.Samples (
-  Cut, Colour, Clarity, Diamond(..), diamonds,
+  Cut, Colour, Clarity, Diamond(..), diamonds, dsmall,
   Car(..), mtcars
 )
 
@@ -43,6 +43,8 @@ $(deriveFromRecordOffset ''Diamond 1)
 diamonds :: IO (Vector Diamond)
 diamonds = loadCsv "data/diamonds.csv"
 
+dsmall :: IO (Vector Diamond)
+dsmall = loadCsv "data/dsmall.csv"
 
 data Car = Car { manufacturer :: String
                , model :: String

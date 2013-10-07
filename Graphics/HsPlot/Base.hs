@@ -9,7 +9,7 @@
 -- 
 -- Base definitions for HsPlot.
 
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleInstances, OverlappingInstances, RankNTypes, UndecidableInstances #-}
 
 module Graphics.HsPlot.Base (
   Aesthetics(..), Colour(..), Geometry(..), Layer(..), Plot(..), Scale(..),
@@ -67,12 +67,28 @@ data Shape = Circle | Square
 
 type Colour = (Double,Double,Double)
 
+colourGradientScale :: (Ord a, Enum a)
+                    => a -> a -> a -> Colour
+colourGradientScale cmin cmax c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin))
+
+colourHueScale :: (Ord a, Enum a)
+               => a -> a -> a -> Colour
+colourHueScale cmin cmax c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin + 1)
+        
+class Scalable a where
+  defaultColorScale :: a -> a -> a -> Colour
+
+instance (Enum a, Ord a) => Scalable a where
+  defaultColorScale = colourHueScale
+
+instance Scalable Int where
+  defaultColorScale = colourGradientScale
 
 -- |Construct a Plot for the given dataset and layers.
 plot :: (Applicative f, Traversable f,
          Ord x, NiceNum x, Real x, Enum x,
          Ord y, NiceNum y, Real y, Enum y,
-         Ord c, Enum c
+         Ord c, Enum c, Scalable c
          )
      => f a -> [Layer a x y c p s h] -> Plot f a x y c p s h
 plot p l = Plot p l xscale yscale cscale
@@ -85,8 +101,7 @@ plot p l = Plot p l xscale yscale cscale
         ymax = mma p l maximum y
         cmin = mma p l minimum colour
         cmax = mma p l maximum colour
-        --colorScheme c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin),1)
-        colorScheme c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin + 1)
+        colorScheme = defaultColorScale cmin cmax
 
 -- |Find a specific element accross multiple layers.
 -- A typical usage would be to find the minimum or the maximum.
