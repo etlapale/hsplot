@@ -19,7 +19,7 @@
 module Graphics.HsPlot (
   Aesthetics(..), Geometry(..), Layer(..), Plot(..),
   aes, plot,
-  render, renderToPNG
+  render, renderToPNG, renderToPDF
 )
 where
 
@@ -128,11 +128,17 @@ renderToPNG :: (Applicative f, Traversable f, Show x, Show y)
             => Int -> Int -> FilePath -> Plot f a x y c p s h -> IO ()
 renderToPNG w h f p =
   withImageSurface FormatARGB32 w h $ \s -> do
-    renderWith s $ render w h p
+    renderWith s $ render (realToFrac w) (realToFrac h) p
     surfaceWriteToPNG s f
+
+renderToPDF :: (Applicative f, Traversable f, Show x, Show y)
+            => Double -> Double -> FilePath -> Plot f a x y c p s h -> IO ()
+renderToPDF w h f p =
+  withPDFSurface f w h $ \s -> do
+    renderWith s $ render w h p
     
 render :: (Applicative f, Traversable f, Show x, Show y)
-       => Int -> Int -> Plot f a x y c p s h -> Render ()
+       => Double -> Double -> Plot f a x y c p s h -> Render ()
 render w h p = do
   drawBackground
 
@@ -186,8 +192,8 @@ render w h p = do
 
   where ofx = 40
         ofy = 30
-        lw = realToFrac w - ofx
-        lh = realToFrac h - ofy
+        lw = w - ofx
+        lh = h - ofy
         tickSize = 5
         xticksmargin = tickSize/2    -- Vertical margin on top of tick labels
         yticksmargin = tickSize      -- Horizontal margin right of tick labels
