@@ -13,17 +13,19 @@
 
 module Graphics.HsPlot.Base (
   Aesthetics(..), Colour(..), Geometry(..), Layer(..), Plot(..), Scale(..),
+  Factor(..),
   aes, plot
 )
 where
 
 import Control.Applicative
 import Data.Foldable (Foldable, forM_, minimum, maximum, toList)
+import Data.Ord (comparing)
 import Data.Traversable
 import Prelude hiding (minimum, maximum)
 
 import Graphics.HsPlot.Algorithms
-import Graphics.HsPlot.Colors
+import Graphics.HsPlot.Colours
 
 data Plot f a x y c p s h = Plot { points :: f a
                                  , layers :: [Layer a x y c p s h]
@@ -76,13 +78,27 @@ colourHueScale :: (Ord a, Enum a)
 colourHueScale cmin cmax c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin + 1)
         
 class Scalable a where
-  defaultColorScale :: a -> a -> a -> Colour
+  defaultColourScale :: a -> a -> a -> Colour
 
 instance (Enum a, Ord a) => Scalable a where
-  defaultColorScale = colourHueScale
+  defaultColourScale = colourHueScale
 
 instance Scalable Int where
-  defaultColorScale = colourGradientScale
+  defaultColourScale = colourGradientScale
+
+data Factor a = Factor { fromFactor :: a }
+
+instance Eq a => Eq (Factor a) where
+  (==) (Factor a) = (==) a . fromFactor
+
+instance Ord a => Ord (Factor a) where
+  compare = comparing fromFactor
+
+instance Enum a => Enum (Factor a) where
+  fromEnum = fromEnum . fromFactor
+
+instance (Enum a, Ord a) => Scalable (Factor a) where
+  defaultColourScale = colourHueScale
 
 -- |Construct a Plot for the given dataset and layers.
 plot :: (Applicative f, Traversable f,
@@ -94,14 +110,14 @@ plot :: (Applicative f, Traversable f,
 plot p l = Plot p l xscale yscale cscale
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
-        cscale = Scale cmin cmax [cmin..cmax] colorScheme
+        cscale = Scale cmin cmax [cmin..cmax] colourScheme
         xmin = mma p l minimum x
         xmax = mma p l maximum x
         ymin = mma p l minimum y
         ymax = mma p l maximum y
         cmin = mma p l minimum colour
         cmax = mma p l maximum colour
-        colorScheme = defaultColorScale cmin cmax
+        colourScheme = defaultColourScale cmin cmax
 
 -- |Find a specific element accross multiple layers.
 -- A typical usage would be to find the minimum or the maximum.
