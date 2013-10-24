@@ -104,12 +104,13 @@ drawBackground = do
 drawLayer :: (Traversable f, Applicative f)
           => Double -> Double -> Plot f a x y c p s h -> Layer a x y c p s h -> Render ()
 drawLayer w h p (Layer Point a) =
-  forM_ (plotPoints p a) $ \(x,y,c,sh) -> drawPoint (x*w,y*h,c,sh)
+  forM_ (plotPoints p a) $ \(x,y,c,p,sh) -> drawPoint (x*w,y*h,c,p,sh)
 drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
 drawPoint :: PlotPoint -> Render ()
-drawPoint (x,y,(r,g,b),sh) = do
-  setSourceRGB r g b
+drawPoint (x,y,(r,g,b),a,sh) = do
+  liftIO $ putStrLn $ "Point alpha: " ++ show a
+  setSourceRGBA r g b a
   setLineWidth 1.0
   drawShape x y sz sh
   where sz = 4

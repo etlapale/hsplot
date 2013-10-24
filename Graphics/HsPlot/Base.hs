@@ -36,6 +36,7 @@ data Plot f a x y c p s h = Plot { points :: f a
                                  , scaleX :: Scale x Double
                                  , scaleY :: Scale y Double
                                  , scaleC :: Scale c Colour
+                                 , scaleP :: Scale p Double
                                  --, scaleS :: Scale s Double
                                  , scaleH :: Scale h Shape
                                  }
@@ -55,22 +56,24 @@ plotPoints :: (Traversable f)
            => Plot f a x y c p s h
            -> Aesthetics a x y c p s h
            -> [PlotPoint]
-plotPoints p a = tZip4
+plotPoints p a = tZip5
   (fmap (scaleMap (scaleX p) . x a) $ points p)
   (fmap (scaleMap (scaleY p) . y a) $ points p)
   (fmap (scaleMap (scaleC p) . colour a) $ points p)
+  (fmap (scaleMap (scaleP p) . alpha a) $ points p)
   (fmap (scaleMap (scaleH p) . shape a) $ points p)
  
 --tZip3 :: Traversable f => f a -> f b -> f c -> [(a,b,c)]
 --tZip3 m n p = zip3 (toList m) (toList n) (toList p)
 
-tZip4 :: Traversable f => f a -> f b -> f c -> f d -> [(a,b,c,d)]
-tZip4 m n o p = zip4 (toList m) (toList n) (toList o) (toList p)
+tZip5 :: Traversable f
+      => f a -> f b -> f c -> f d -> f e-> [(a,b,c,d,e)]
+tZip5 m n o p q = zip5 (toList m) (toList n) (toList o) (toList p) (toList q)
 
-zip4 (a:as) (b:bs) (c:cs) (d:ds) = (a,b,c,d) : zip4 as bs cs ds
-zip4 _      _      _      _      = []
+zip5 (a:as) (b:bs) (c:cs) (d:ds) (e:es) = (a,b,c,d,e) : zip5 as bs cs ds es
+zip5 _      _      _      _  _     = []
 
-type PlotPoint = (Double, Double, Colour, Shape)
+type PlotPoint = (Double, Double, Colour, Double, Shape)
 
 data Aesthetics a x y c p s h = Aesthetics { x :: a -> x
                                            , y :: a -> y
@@ -139,7 +142,8 @@ plot :: (Applicative f, Traversable f,
          Ord x, NiceNum x, Real x, Enum x,
          Ord y, NiceNum y, Real y, Enum y,
          Ord c, Enum c, Scalable c,
-         Ord s,--, NiceNum s, Real s, Enum s
+         Ord p, Enum p, Scalable p,
+         Ord s, Real p,--, NiceNum s, Real s, Enum s
          Ord h, Enum h, Eq h, Bounded h, Scalable h
          )
      => f a -> [Layer a x y c p s h] -> Plot f a x y c p s h
@@ -148,11 +152,13 @@ plot p l = Plot { points = p
                 , scaleX = xscale
                 , scaleY = yscale
                 , scaleC = cscale
+                , scaleP = pscale
                 , scaleH = hscale
                 }
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
         cscale = Scale cmin cmax [cmin..cmax] colourScheme
+        pscale = linearRange 0 1 pmin pmax
         hscale = Scale hmin hmax [hmin..hmax] shapeScale
         --sscale = niceLinearRange smin smax
         xmin = mma p l minimum x
@@ -163,6 +169,8 @@ plot p l = Plot { points = p
         cmax = mma p l maximum colour
         smin = mma p l minimum size
         smax = mma p l maximum size
+        pmin = mma p l minimum alpha
+        pmax = mma p l maximum alpha
         hmin = mma p l minimum shape
         hmax = mma p l maximum shape
         --colourScheme :: c -> Colour
@@ -178,6 +186,16 @@ mma :: (Applicative f, Traversable f, Ord n)
     -> (Aesthetics a x y c p s h -> a -> n)
     -> n
 mma p l m i = m $ fmap (m . (<$> p) . i . aesthetics) l
+
+linearRange :: (Real x, Fractional t)
+            => x -> x -> x -> x -> Scale x t
+linearRange imin imax min max = Scale { scaleMin = min
+                            , scaleMax = max
+                            , scaleTicks = [min,max]
+                            , scaleMap = if min == max && min >= imin && min <= imax
+                                         then realToFrac
+                                         else (/(realToFrac $ max-min)) . realToFrac . (subtract min)
+                            }
         
 niceLinearRange :: (NiceNum x, Real x, Enum x, Fractional t)
                 => x -> x -> Scale x t
