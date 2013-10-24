@@ -1,0 +1,35 @@
+Name:           hsplot
+Version:        0.1
+Description:    Plotting framework.
+License:        BSD3
+License-file:   LICENSE
+Author:         Émilien Tlapale
+Maintainer:     emilien@tlapale.com
+Build-type:     Simple
+Cabal-version:  >= 1.14
+
+Library
+  Default-language:     Haskell2010
+  Build-depends:        base == 4.*,
+                        bytestring == 0.10.*,
+                        cairo == 0.12.*,
+                        cassava == 0.2.*,
+                        vector == 0.10.*,
+                        template-haskell == 2.8.*
+  Exposed-modules:      Graphics.HsPlot,
+                        Graphics.HsPlot.Algorithms,
+                        Graphics.HsPlot.Base,
+                        Graphics.HsPlot.Cairo,
+                        Graphics.HsPlot.Colours,
+                        Graphics.HsPlot.Samples,
+                        Graphics.HsPlot.TH
+
+Executable              ggplot-book
+  Default-language:     Haskell2010
+  Main-is:              examples/ggplot-book.hs
+  Build-depends:        base == 4.*,
+                        bytestring == 0.10.*,
+                        cairo == 0.12.*,
+                        cassava == 0.2.*,
+                        vector == 0.10.*,
+                        template-haskell == 2.8.*

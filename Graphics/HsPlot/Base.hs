@@ -9,11 +9,11 @@
 -- 
 -- Base definitions for HsPlot.
 
-{-# LANGUAGE FlexibleInstances, OverlappingInstances, RankNTypes, UndecidableInstances #-}
+{-# LANGUAGE DefaultSignatures, FlexibleInstances, OverlappingInstances, RankNTypes, StandaloneDeriving #-}
 
 module Graphics.HsPlot.Base (
   Aesthetics(..), Colour(..), Geometry(..), Layer(..), Plot(..), Scale(..),
-  Factor(..),
+  Factor(..), Scalable,
   aes, plot
 )
 where
@@ -26,6 +26,7 @@ import Prelude hiding (minimum, maximum)
 
 import Graphics.HsPlot.Algorithms
 import Graphics.HsPlot.Colours
+
 
 data Plot f a x y c p s h = Plot { points :: f a
                                  , layers :: [Layer a x y c p s h]
@@ -54,6 +55,7 @@ data Aesthetics a x y c p s h = Aesthetics { x :: a -> x
                                            , shape :: a -> h
                                            }
 
+
 aes :: (Num x, Num y, Num c, Num p, Num s, Num h) => Aesthetics a x y c p s h
 aes = Aesthetics { x = const 0
                  , y = const 0
@@ -80,7 +82,7 @@ colourHueScale cmin cmax c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fro
 class Scalable a where
   defaultColourScale :: a -> a -> a -> Colour
 
-instance (Enum a, Ord a) => Scalable a where
+  default defaultColourScale :: (Enum a, Ord a) => a -> a -> a -> Colour
   defaultColourScale = colourHueScale
 
 instance Scalable Int where
@@ -88,14 +90,16 @@ instance Scalable Int where
 
 data Factor a = Factor { fromFactor :: a }
 
-instance Eq a => Eq (Factor a) where
-  (==) (Factor a) = (==) a . fromFactor
-
-instance Ord a => Ord (Factor a) where
-  compare = comparing fromFactor
+deriving instance Show a => Show (Factor a)
+deriving instance Eq a => Eq (Factor a)
+deriving instance Ord a => Ord (Factor a)
 
 instance Enum a => Enum (Factor a) where
   fromEnum = fromEnum . fromFactor
+  toEnum = fromFactor . toEnum
+
+--deriving instance Num a => Num (Factor a)
+
 
 instance (Enum a, Ord a) => Scalable (Factor a) where
   defaultColourScale = colourHueScale
@@ -104,19 +108,23 @@ instance (Enum a, Ord a) => Scalable (Factor a) where
 plot :: (Applicative f, Traversable f,
          Ord x, NiceNum x, Real x, Enum x,
          Ord y, NiceNum y, Real y, Enum y,
-         Ord c, Enum c, Scalable c
+         Ord c, Enum c, Scalable c,
+         Ord s--, NiceNum s, Real s, Enum s
          )
      => f a -> [Layer a x y c p s h] -> Plot f a x y c p s h
-plot p l = Plot p l xscale yscale cscale
+plot p l = Plot p l xscale yscale cscale --sscale
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
         cscale = Scale cmin cmax [cmin..cmax] colourScheme
+        --sscale = niceLinearRange smin smax
         xmin = mma p l minimum x
         xmax = mma p l maximum x
         ymin = mma p l minimum y
         ymax = mma p l maximum y
         cmin = mma p l minimum colour
         cmax = mma p l maximum colour
+        smin = mma p l minimum size
+        smax = mma p l maximum size
         colourScheme = defaultColourScale cmin cmax
 
 -- |Find a specific element accross multiple layers.

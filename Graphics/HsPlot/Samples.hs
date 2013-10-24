@@ -13,6 +13,7 @@ import Data.Vector (Vector)
 import qualified Data.ByteString.Lazy as BS
 import Data.Csv
 
+import Graphics.HsPlot.Base hiding (Colour)
 import Graphics.HsPlot.TH
 
 
@@ -25,6 +26,8 @@ data Cut = Fair | Good | VeryGood | Premium | Ideal
   deriving (Eq, Enum, Ord)
 data Colour = D | E | F | G | H | I | J
   deriving (Eq, Enum, Ord)
+instance Scalable Colour
+
 data Clarity = I3 | I2 | I1 | SI2 | SI1 | VS2 | VS1 | VVS2 | VVS1 | IF | FL
   deriving (Eq, Enum, Ord, Show)
 data Diamond = Diamond { carat :: Double

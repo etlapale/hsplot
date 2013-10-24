@@ -106,16 +106,23 @@ drawLayer :: (Traversable f, Applicative f)
 drawLayer w h p (Layer Point a) =
   drawPoints $ tZip3 (fmap ((*w) . scaleMap (scaleX p) . x a) $ points p)
                      (fmap ((*h) . scaleMap (scaleY p) . y a) $ points p)
+                     --(fmap (scaleMap (scaleS p) . size a) $ points p)
                      (fmap (scaleMap (scaleC p) . colour a) $ points p)
 drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
 tZip3 :: Traversable f => f a -> f b -> f c -> [(a,b,c)]
 tZip3 m n p = zip3 (toList m) (toList n) (toList p)
 
+tZip4 :: Traversable f => f a -> f b -> f c -> f d -> [(a,b,c,d)]
+tZip4 m n o p = zip4 (toList m) (toList n) (toList o) (toList p)
+
+zip4 (a:as) (b:bs) (c:cs) (d:ds) = (a,b,c,d) : zip4 as bs cs ds
+zip4 _      _      _      _      = []
+
 drawPoints :: Foldable f => f (Double,Double,Colour) -> Render ()
 drawPoints pts =
   forM_ pts $ \(x,y,(r,g,b)) -> do
-    arc x y 3 0 (2*pi)
+    arc x y 2 0 (2*pi)
     setSourceRGB r g b
     fill
 

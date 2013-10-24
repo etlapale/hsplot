@@ -3,3 +3,5 @@ bla.*
 *.hi
 *.o
 Session.vim
+fig*.png
+dist
