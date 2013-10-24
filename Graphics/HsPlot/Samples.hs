@@ -13,7 +13,7 @@ import Data.Vector (Vector)
 import qualified Data.ByteString.Lazy as BS
 import Data.Csv
 
-import Graphics.HsPlot.Base hiding (Colour)
+import Graphics.HsPlot.Base (Scalable)
 import Graphics.HsPlot.TH
 
 
@@ -23,9 +23,11 @@ loadCsv p = do
   return v
 
 data Cut = Fair | Good | VeryGood | Premium | Ideal
-  deriving (Eq, Enum, Ord)
+  deriving (Eq, Enum, Ord, Show, Bounded)
+instance Scalable Cut
+
 data Colour = D | E | F | G | H | I | J
-  deriving (Eq, Enum, Ord)
+  deriving (Eq, Enum, Ord, Show, Bounded)
 instance Scalable Colour
 
 data Clarity = I3 | I2 | I1 | SI2 | SI1 | VS2 | VS1 | VVS2 | VVS1 | IF | FL

@@ -9,16 +9,19 @@
 -- 
 -- Base definitions for HsPlot.
 
-{-# LANGUAGE DefaultSignatures, FlexibleInstances, OverlappingInstances, RankNTypes, StandaloneDeriving #-}
+{-# LANGUAGE DefaultSignatures, FlexibleInstances, GeneralizedNewtypeDeriving, OverlappingInstances, RankNTypes, StandaloneDeriving #-}
 
 module Graphics.HsPlot.Base (
-  Aesthetics(..), Colour(..), Geometry(..), Layer(..), Plot(..), Scale(..),
+  Aesthetics(..), Colour(..), Geometry(..), Layer(..), PlotPoint(..), Plot(..), Scale(..), Shape(..),
   Factor(..), Scalable,
-  aes, plot
+  aes, plot,
+  defaultColourScale, colourGradientScale, colourHueScale,
+  plotPoints
 )
 where
 
 import Control.Applicative
+import Data.Function
 import Data.Foldable (Foldable, forM_, minimum, maximum, toList)
 import Data.Ord (comparing)
 import Data.Traversable
@@ -34,7 +37,7 @@ data Plot f a x y c p s h = Plot { points :: f a
                                  , scaleY :: Scale y Double
                                  , scaleC :: Scale c Colour
                                  --, scaleS :: Scale s Double
-                                 --, scaleH :: Scale h Shape
+                                 , scaleH :: Scale h Shape
                                  }
 
 data Layer a x y c p s h = Layer { geometry :: Geometry
@@ -47,6 +50,28 @@ data Scale x t = Scale { scaleMin   :: x
                        , scaleMap   :: x -> t
                        }
 
+-- |Convert a points in a Layer to a Traversable of PlotPoint's.
+plotPoints :: (Traversable f)
+           => Plot f a x y c p s h
+           -> Aesthetics a x y c p s h
+           -> [PlotPoint]
+plotPoints p a = tZip4
+  (fmap (scaleMap (scaleX p) . x a) $ points p)
+  (fmap (scaleMap (scaleY p) . y a) $ points p)
+  (fmap (scaleMap (scaleC p) . colour a) $ points p)
+  (fmap (scaleMap (scaleH p) . shape a) $ points p)
+ 
+--tZip3 :: Traversable f => f a -> f b -> f c -> [(a,b,c)]
+--tZip3 m n p = zip3 (toList m) (toList n) (toList p)
+
+tZip4 :: Traversable f => f a -> f b -> f c -> f d -> [(a,b,c,d)]
+tZip4 m n o p = zip4 (toList m) (toList n) (toList o) (toList p)
+
+zip4 (a:as) (b:bs) (c:cs) (d:ds) = (a,b,c,d) : zip4 as bs cs ds
+zip4 _      _      _      _      = []
+
+type PlotPoint = (Double, Double, Colour, Shape)
+
 data Aesthetics a x y c p s h = Aesthetics { x :: a -> x
                                            , y :: a -> y
                                            , colour :: a -> c
@@ -55,8 +80,7 @@ data Aesthetics a x y c p s h = Aesthetics { x :: a -> x
                                            , shape :: a -> h
                                            }
 
-
-aes :: (Num x, Num y, Num c, Num p, Num s, Num h) => Aesthetics a x y c p s h
+aes :: Aesthetics a Double Double Double Double Double Int
 aes = Aesthetics { x = const 0
                  , y = const 0
                  , colour = const 0
@@ -67,7 +91,8 @@ aes = Aesthetics { x = const 0
 
 data Geometry = Point | Line
 
-data Shape = Circle | Square
+data Shape = Circle | Triangle | Square | Cross | DiagSquare
+  deriving (Eq, Ord, Enum)
 
 type Colour = (Double,Double,Double)
 
@@ -79,13 +104,18 @@ colourHueScale :: (Ord a, Enum a)
                => a -> a -> a -> Colour
 colourHueScale cmin cmax c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin + 1)
         
-class Scalable a where
+class (Enum a, Ord a) => Scalable a where
   defaultColourScale :: a -> a -> a -> Colour
-
   default defaultColourScale :: (Enum a, Ord a) => a -> a -> a -> Colour
   defaultColourScale = colourHueScale
 
+--instance (Enum a, Ord a) => Enum a where
+--  defaultColourScale = colourHueScale
+
 instance Scalable Int where
+  defaultColourScale = colourGradientScale
+
+instance Scalable Double where
   defaultColourScale = colourGradientScale
 
 data Factor a = Factor { fromFactor :: a }
@@ -109,13 +139,21 @@ plot :: (Applicative f, Traversable f,
          Ord x, NiceNum x, Real x, Enum x,
          Ord y, NiceNum y, Real y, Enum y,
          Ord c, Enum c, Scalable c,
-         Ord s--, NiceNum s, Real s, Enum s
+         Ord s,--, NiceNum s, Real s, Enum s
+         Ord h, Enum h, Eq h, Bounded h, Scalable h
          )
      => f a -> [Layer a x y c p s h] -> Plot f a x y c p s h
-plot p l = Plot p l xscale yscale cscale --sscale
+plot p l = Plot { points = p
+                , layers = l
+                , scaleX = xscale
+                , scaleY = yscale
+                , scaleC = cscale
+                , scaleH = hscale
+                }
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
         cscale = Scale cmin cmax [cmin..cmax] colourScheme
+        hscale = Scale hmin hmax [hmin..hmax] shapeScale
         --sscale = niceLinearRange smin smax
         xmin = mma p l minimum x
         xmax = mma p l maximum x
@@ -125,7 +163,11 @@ plot p l = Plot p l xscale yscale cscale --sscale
         cmax = mma p l maximum colour
         smin = mma p l minimum size
         smax = mma p l maximum size
+        hmin = mma p l minimum shape
+        hmax = mma p l maximum shape
+        --colourScheme :: c -> Colour
         colourScheme = defaultColourScale cmin cmax
+        shapeScale x = toEnum $ on mod fromEnum x maxBound
 
 -- |Find a specific element accross multiple layers.
 -- A typical usage would be to find the minimum or the maximum.
@@ -146,7 +188,6 @@ niceLinearRange min max = Scale { scaleMin = min
                                 }
   where (niceMin,niceMax,niceSpacing) = niceRange min max
         ticks = filter (>=min) $ takeWhile (<=max) [niceMin + niceSpacing * i | i <- [0..]]
-
 
 reverseScaleMap :: Num t => Scale x t -> Scale x t
 reverseScaleMap s = s { scaleMap = (1-) . scaleMap s }

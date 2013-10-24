@@ -15,7 +15,7 @@ module Graphics.HsPlot.Cairo (
 where
 
 import Control.Applicative
-import Data.Foldable
+import Data.Foldable as Foldable
 import Data.Traversable
 
 import Graphics.Rendering.Cairo
@@ -104,27 +104,44 @@ drawBackground = do
 drawLayer :: (Traversable f, Applicative f)
           => Double -> Double -> Plot f a x y c p s h -> Layer a x y c p s h -> Render ()
 drawLayer w h p (Layer Point a) =
-  drawPoints $ tZip3 (fmap ((*w) . scaleMap (scaleX p) . x a) $ points p)
-                     (fmap ((*h) . scaleMap (scaleY p) . y a) $ points p)
-                     --(fmap (scaleMap (scaleS p) . size a) $ points p)
-                     (fmap (scaleMap (scaleC p) . colour a) $ points p)
+  forM_ (plotPoints p a) $ \(x,y,c,sh) -> drawPoint (x*w,y*h,c,sh)
 drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
-tZip3 :: Traversable f => f a -> f b -> f c -> [(a,b,c)]
-tZip3 m n p = zip3 (toList m) (toList n) (toList p)
+drawPoint :: PlotPoint -> Render ()
+drawPoint (x,y,(r,g,b),sh) = do
+  setSourceRGB r g b
+  setLineWidth 1.0
+  drawShape x y sz sh
+  where sz = 4
 
-tZip4 :: Traversable f => f a -> f b -> f c -> f d -> [(a,b,c,d)]
-tZip4 m n o p = zip4 (toList m) (toList n) (toList o) (toList p)
-
-zip4 (a:as) (b:bs) (c:cs) (d:ds) = (a,b,c,d) : zip4 as bs cs ds
-zip4 _      _      _      _      = []
-
-drawPoints :: Foldable f => f (Double,Double,Colour) -> Render ()
-drawPoints pts =
-  forM_ pts $ \(x,y,(r,g,b)) -> do
-    arc x y 2 0 (2*pi)
-    setSourceRGB r g b
-    fill
+drawShape :: Double -> Double -> Double -> Shape -> Render ()
+drawShape x y sz Circle = do
+  arc x y (sz/2) 0 (2*pi)
+  fill
+drawShape x y sz Triangle = do
+  moveTo x (y-2*sz/3)
+  relLineTo (sz/2) sz
+  relLineTo (-sz) 0
+  closePath
+  fill
+drawShape x y sz Square = do
+  rectangle (x-sz/2) (y-sz/2) sz sz
+  fill
+drawShape x y sz Cross = do
+  moveTo x (y-sz/2)
+  relLineTo 0 sz
+  moveTo (x-sz/2) y
+  relLineTo sz 0
+  stroke
+drawShape x y sz DiagSquare = do
+  moveTo (x-sz/2) (y-sz/2)
+  relLineTo sz sz
+  moveTo (x+sz/2) (y-sz/2)
+  relLineTo (-sz) sz
+  stroke
+drawShape x y sz _ = do
+  arc x y (sz/4) 0 (2*pi)
+  fill
 
 {-drawLines :: Foldable f => f (Double,Double) -> Render ()
 drawLines ((x,y):p) = do
