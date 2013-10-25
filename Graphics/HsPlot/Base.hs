@@ -14,7 +14,7 @@
 module Graphics.HsPlot.Base (
   Aesthetics(..), Colour(..), Geometry(..), Layer(..), PlotPoint(..), Plot(..), Scale(..), Shape(..),
   Factor(..), Scalable,
-  aes, plot,
+  aes, plot, pointLayer,
   defaultColourScale, colourGradientScale, colourHueScale,
   plotPoints
 )
@@ -23,6 +23,7 @@ where
 import Control.Applicative
 import Data.Function
 import Data.Foldable (Foldable, forM_, minimum, maximum, toList)
+import Data.Maybe
 import Data.Ord (comparing)
 import Data.Traversable
 import Prelude hiding (minimum, maximum)
@@ -32,6 +33,7 @@ import Graphics.HsPlot.Colours
 
 
 data Plot f a x y c p s h = Plot { points :: f a
+                                 , aesthetics :: Aesthetics a x y c p s h
                                  , layers :: [Layer a x y c p s h]
                                  , scaleX :: Scale x Double
                                  , scaleY :: Scale y Double
@@ -42,7 +44,7 @@ data Plot f a x y c p s h = Plot { points :: f a
                                  }
 
 data Layer a x y c p s h = Layer { geometry :: Geometry
-                                 , aesthetics :: Aesthetics a x y c p s h
+                                 , laes :: Maybe (Aesthetics a x y c p s h)
                                  }
 
 data Scale x t = Scale { scaleMin   :: x
@@ -51,18 +53,24 @@ data Scale x t = Scale { scaleMin   :: x
                        , scaleMap   :: x -> t
                        }
 
+pointLayer :: Layer a x y c p s h
+pointLayer = Layer { geometry = Point
+                   , laes = Nothing
+                   }
+
 -- |Convert a points in a Layer to a Traversable of PlotPoint's.
 plotPoints :: (Traversable f)
            => Plot f a x y c p s h
-           -> Aesthetics a x y c p s h
+           -> Maybe (Aesthetics a x y c p s h)
            -> [PlotPoint]
-plotPoints p a = tZip5
+plotPoints p aes = tZip5
   (fmap (scaleMap (scaleX p) . x a) $ points p)
   (fmap (scaleMap (scaleY p) . y a) $ points p)
   (fmap (scaleMap (scaleC p) . colour a) $ points p)
   (fmap (scaleMap (scaleP p) . alpha a) $ points p)
   (fmap (scaleMap (scaleH p) . shape a) $ points p)
- 
+  where a = fromMaybe (aesthetics p) aes
+
 --tZip3 :: Traversable f => f a -> f b -> f c -> [(a,b,c)]
 --tZip3 m n p = zip3 (toList m) (toList n) (toList p)
 
@@ -146,33 +154,37 @@ plot :: (Applicative f, Traversable f,
          Ord s, Real p,--, NiceNum s, Real s, Enum s
          Ord h, Enum h, Eq h, Bounded h, Scalable h
          )
-     => f a -> [Layer a x y c p s h] -> Plot f a x y c p s h
-plot p l = Plot { points = p
-                , layers = l
-                , scaleX = xscale
-                , scaleY = yscale
-                , scaleC = cscale
-                , scaleP = pscale
-                , scaleH = hscale
-                }
+     => f a                             -- ^ Dataset to plot
+     -> Aesthetics a x y c p s h        -- ^ Default plot aesthetics
+     -> [Layer a x y c p s h]           -- ^ Set of layers to display
+     -> Plot f a x y c p s h            -- ^ Resulting scaled plot
+plot p aes l = Plot { points = p
+                    , aesthetics = aes
+                    , layers = l
+                    , scaleX = xscale
+                    , scaleY = yscale
+                    , scaleC = cscale
+                    , scaleP = pscale
+                    , scaleH = hscale
+                    }
   where xscale = niceLinearRange xmin xmax
         yscale = reverseScaleMap $ niceLinearRange ymin ymax
         cscale = Scale cmin cmax [cmin..cmax] colourScheme
         pscale = linearRange 0 1 pmin pmax
         hscale = Scale hmin hmax [hmin..hmax] shapeScale
         --sscale = niceLinearRange smin smax
-        xmin = mma p l minimum x
-        xmax = mma p l maximum x
-        ymin = mma p l minimum y
-        ymax = mma p l maximum y
-        cmin = mma p l minimum colour
-        cmax = mma p l maximum colour
-        smin = mma p l minimum size
-        smax = mma p l maximum size
-        pmin = mma p l minimum alpha
-        pmax = mma p l maximum alpha
-        hmin = mma p l minimum shape
-        hmax = mma p l maximum shape
+        xmin = mma aes p l minimum x
+        xmax = mma aes p l maximum x
+        ymin = mma aes p l minimum y
+        ymax = mma aes p l maximum y
+        cmin = mma aes p l minimum colour
+        cmax = mma aes p l maximum colour
+        smin = mma aes p l minimum size
+        smax = mma aes p l maximum size
+        pmin = mma aes p l minimum alpha
+        pmax = mma aes p l maximum alpha
+        hmin = mma aes p l minimum shape
+        hmax = mma aes p l maximum shape
         --colourScheme :: c -> Colour
         colourScheme = defaultColourScale cmin cmax
         shapeScale x = toEnum $ on mod fromEnum x maxBound
@@ -180,12 +192,13 @@ plot p l = Plot { points = p
 -- |Find a specific element accross multiple layers.
 -- A typical usage would be to find the minimum or the maximum.
 mma :: (Applicative f, Traversable f, Ord n)
-    => f a
+    => Aesthetics a x y c p s h
+    -> f a
     -> [Layer a x y c p s h]
     -> (forall t j. (Traversable t, Ord j) => (t j -> j))
     -> (Aesthetics a x y c p s h -> a -> n)
     -> n
-mma p l m i = m $ fmap (m . (<$> p) . i . aesthetics) l
+mma aes p l m i = m $ fmap (m . (<$> p) . i . fromMaybe aes . laes) l
 
 linearRange :: (Real x, Fractional t)
             => x -> x -> x -> x -> Scale x t

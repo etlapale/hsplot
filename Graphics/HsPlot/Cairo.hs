@@ -109,7 +109,6 @@ drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
 
 drawPoint :: PlotPoint -> Render ()
 drawPoint (x,y,(r,g,b),a,sh) = do
-  liftIO $ putStrLn $ "Point alpha: " ++ show a
   setSourceRGBA r g b a
   setLineWidth 1.0
   drawShape x y sz sh
