@@ -7,7 +7,7 @@
 -- Stability:   experimental
 -- Portability: portable
 -- 
--- Cairo backend to HsPlot.
+-- Cairo backend.
 
 module Graphics.HsPlot.Cairo (
   renderToPNG, renderToPDF, render
@@ -21,6 +21,7 @@ import Data.Traversable
 import Graphics.Rendering.Cairo
 
 import Graphics.HsPlot.Base
+import Graphics.HsPlot.Render
 
 renderToPNG :: (Applicative f, Traversable f, Show x, Show y)
             => Int -> Int -> FilePath -> Plot f a x y c p s h -> IO ()
@@ -105,7 +106,13 @@ drawLayer :: (Traversable f, Applicative f)
           => Double -> Double -> Plot f a x y c p s h -> Layer a x y c p s h -> Render ()
 drawLayer w h p (Layer Point a) =
   forM_ (plotPoints p a) $ \(x,y,c,p,sh) -> drawPoint (x*w,y*h,c,p,sh)
-drawLayer _ _ _ _ = undefined -- (Layer Line p) = drawLines p
+drawLayer w h p (Layer Line a) = do
+  setSourceRGBA r g b alp
+  setLineWidth 1.0
+  moveTo (x*w) (y*h)
+  forM_ (pps) $ \(x,y,c,p,sh) -> lineTo (x*w) (y*h)
+  stroke
+  where ((x,y,(r,g,b),alp,sh):pps) = plotPoints p a
 
 drawPoint :: PlotPoint -> Render ()
 drawPoint (x,y,(r,g,b),a,sh) = do

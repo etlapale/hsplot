@@ -12,11 +12,10 @@
 {-# LANGUAGE DefaultSignatures, FlexibleInstances, GeneralizedNewtypeDeriving, OverlappingInstances, RankNTypes, StandaloneDeriving #-}
 
 module Graphics.HsPlot.Base (
-  Aesthetics(..), Colour(..), Geometry(..), Layer(..), PlotPoint(..), Plot(..), Scale(..), Shape(..),
+  Aesthetics(..), Colour(..), Geometry(..), Layer(..), Plot(..), Scale(..), Shape(..),
   Factor(..), Scalable,
   aes, plot, pointLayer,
   defaultColourScale, colourGradientScale, colourHueScale,
-  plotPoints
 )
 where
 
@@ -28,8 +27,8 @@ import Data.Ord (comparing)
 import Data.Traversable
 import Prelude hiding (minimum, maximum)
 
-import Graphics.HsPlot.Algorithms
 import Graphics.HsPlot.Colours
+import Graphics.HsPlot.Scales
 
 
 data Plot f a x y c p s h = Plot { points :: f a
@@ -47,42 +46,10 @@ data Layer a x y c p s h = Layer { geometry :: Geometry
                                  , laes :: Maybe (Aesthetics a x y c p s h)
                                  }
 
-data Scale x t = Scale { scaleMin   :: x
-                       , scaleMax   :: x
-                       , scaleTicks :: [x]
-                       , scaleMap   :: x -> t
-                       }
-
 pointLayer :: Layer a x y c p s h
 pointLayer = Layer { geometry = Point
                    , laes = Nothing
                    }
-
--- |Convert a points in a Layer to a Traversable of PlotPoint's.
-plotPoints :: (Traversable f)
-           => Plot f a x y c p s h
-           -> Maybe (Aesthetics a x y c p s h)
-           -> [PlotPoint]
-plotPoints p aes = tZip5
-  (fmap (scaleMap (scaleX p) . x a) $ points p)
-  (fmap (scaleMap (scaleY p) . y a) $ points p)
-  (fmap (scaleMap (scaleC p) . colour a) $ points p)
-  (fmap (scaleMap (scaleP p) . alpha a) $ points p)
-  (fmap (scaleMap (scaleH p) . shape a) $ points p)
-  where a = fromMaybe (aesthetics p) aes
-
---tZip3 :: Traversable f => f a -> f b -> f c -> [(a,b,c)]
---tZip3 m n p = zip3 (toList m) (toList n) (toList p)
-
-tZip5 :: Traversable f
-      => f a -> f b -> f c -> f d -> f e-> [(a,b,c,d,e)]
-tZip5 m n o p q = zip5 (toList m) (toList n) (toList o) (toList p) (toList q)
-
-zip5 (a:as) (b:bs) (c:cs) (d:ds) (e:es) = (a,b,c,d,e) : zip5 as bs cs ds es
-zip5 _      _      _      _  _     = []
-
-type PlotPoint = (Double, Double, Colour, Double, Shape)
-
 data Aesthetics a x y c p s h = Aesthetics { x :: a -> x
                                            , y :: a -> y
                                            , colour :: a -> c
@@ -147,8 +114,8 @@ instance (Enum a, Ord a) => Scalable (Factor a) where
 
 -- |Construct a Plot for the given dataset and layers.
 plot :: (Applicative f, Traversable f,
-         Ord x, NiceNum x, Real x, Enum x,
-         Ord y, NiceNum y, Real y, Enum y,
+         Ord x, Enum x, Real x, Rangeable x,
+         Ord y, Enum y, Real y, Rangeable y,
          Ord c, Enum c, Scalable c,
          Ord p, Enum p, Scalable p,
          Ord s, Real p,--, NiceNum s, Real s, Enum s
@@ -199,26 +166,3 @@ mma :: (Applicative f, Traversable f, Ord n)
     -> (Aesthetics a x y c p s h -> a -> n)
     -> n
 mma aes p l m i = m $ fmap (m . (<$> p) . i . fromMaybe aes . laes) l
-
-linearRange :: (Real x, Fractional t)
-            => x -> x -> x -> x -> Scale x t
-linearRange imin imax min max = Scale { scaleMin = min
-                            , scaleMax = max
-                            , scaleTicks = [min,max]
-                            , scaleMap = if min == max && min >= imin && min <= imax
-                                         then realToFrac
-                                         else (/(realToFrac $ max-min)) . realToFrac . (subtract min)
-                            }
-        
-niceLinearRange :: (NiceNum x, Real x, Enum x, Fractional t)
-                => x -> x -> Scale x t
-niceLinearRange min max = Scale { scaleMin = min
-                                , scaleMax = max
-                                , scaleTicks = ticks
-                                , scaleMap = (/(realToFrac $ max-min)) . realToFrac . subtract min
-                                }
-  where (niceMin,niceMax,niceSpacing) = niceRange min max
-        ticks = filter (>=min) $ takeWhile (<=max) [niceMin + niceSpacing * i | i <- [0..]]
-
-reverseScaleMap :: Num t => Scale x t -> Scale x t
-reverseScaleMap s = s { scaleMap = (1-) . scaleMap s }

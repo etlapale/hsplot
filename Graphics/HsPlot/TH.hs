@@ -31,8 +31,11 @@ nameToField n = AppE (VarE 'BS8.pack) (LitE (StringL $ nameBase n))
 
 deriveFromField :: Name -> Q [Dec]
 deriveFromField t = do
-  TyConI (DataD _ _ _ cs _) <- reify t
-  let clauses = map makeClause cs ++ [wildClause]
+  rt <- reify t
+  let clauses = (case rt of
+                  TyConI (DataD _ _ _ cs _)    -> map makeClause cs ++ [wildClause]
+                  TyConI (NewtypeD _ _ _ cs _) -> makeClause cs : [wildClause]
+                  _ -> error "Cannot derive an unknown field type")
   return [InstanceD [] (AppT (ConT ''FromField) (ConT t))
                         [FunD 'parseField clauses]]
   where makeClause (NormalC n _) =
