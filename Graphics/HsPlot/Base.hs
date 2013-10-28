@@ -14,7 +14,8 @@
 module Graphics.HsPlot.Base (
   Aesthetics(..), Colour(..), Geometry(..), Layer(..), Plot(..), Scale(..), Shape(..),
   Factor(..), Scalable,
-  aes, plot, pointLayer,
+  aes, plot,
+  pointLayer, lineLayer,
   defaultColourScale, colourGradientScale, colourHueScale,
 )
 where
@@ -50,6 +51,12 @@ pointLayer :: Layer a x y c p s h
 pointLayer = Layer { geometry = Point
                    , laes = Nothing
                    }
+
+lineLayer :: Layer a x y c p s h
+lineLayer = Layer { geometry = Line
+                  , laes = Nothing
+                  }
+
 data Aesthetics a x y c p s h = Aesthetics { x :: a -> x
                                            , y :: a -> y
                                            , colour :: a -> c
@@ -72,16 +79,6 @@ data Geometry = Point | Line
 data Shape = Circle | Triangle | Square | Cross | DiagSquare
   deriving (Eq, Ord, Enum)
 
-type Colour = (Double,Double,Double)
-
-colourGradientScale :: (Ord a, Enum a)
-                    => a -> a -> a -> Colour
-colourGradientScale cmin cmax c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin))
-
-colourHueScale :: (Ord a, Enum a)
-               => a -> a -> a -> Colour
-colourHueScale cmin cmax c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin + 1)
-        
 class (Enum a, Ord a) => Scalable a where
   defaultColourScale :: a -> a -> a -> Colour
   default defaultColourScale :: (Enum a, Ord a) => a -> a -> a -> Colour
@@ -108,18 +105,27 @@ instance Enum a => Enum (Factor a) where
 
 --deriving instance Num a => Num (Factor a)
 
+type Colour = (Double,Double,Double)
+
+colourGradientScale :: (Ord a, Enum a)
+                    => a -> a -> a -> Colour
+colourGradientScale cmin cmax c = (0,0,realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin))
+
+colourHueScale :: (Ord a, Enum a)
+               => a -> a -> a -> Colour
+colourHueScale cmin cmax c = lch2rgb 65 100 $ 360 * realToFrac (fromEnum c - fromEnum cmin) / realToFrac (fromEnum cmax - fromEnum cmin + 1)
 
 instance (Enum a, Ord a) => Scalable (Factor a) where
   defaultColourScale = colourHueScale
 
 -- |Construct a Plot for the given dataset and layers.
 plot :: (Applicative f, Traversable f,
-         Ord x, Enum x, Real x, Rangeable x,
-         Ord y, Enum y, Real y, Rangeable y,
-         Ord c, Enum c, Scalable c,
-         Ord p, Enum p, Scalable p,
+         Ord x, Rangeable x, Show x,
+         Ord y, Enum y, Real y, Rangeable y, Show y,
+         Ord c, Enum c, Scalable c, Show c,
+         Ord p, Enum p, Scalable p, Show p,
          Ord s, Real p,--, NiceNum s, Real s, Enum s
-         Ord h, Enum h, Eq h, Bounded h, Scalable h
+         Ord h, Enum h, Eq h, Bounded h, Scalable h, Show h
          )
      => f a                             -- ^ Dataset to plot
      -> Aesthetics a x y c p s h        -- ^ Default plot aesthetics
@@ -128,17 +134,16 @@ plot :: (Applicative f, Traversable f,
 plot p aes l = Plot { points = p
                     , aesthetics = aes
                     , layers = l
-                    , scaleX = xscale
+                    , scaleX = niceScale xmin xmax
                     , scaleY = yscale
                     , scaleC = cscale
                     , scaleP = pscale
                     , scaleH = hscale
                     }
-  where xscale = niceLinearRange xmin xmax
-        yscale = reverseScaleMap $ niceLinearRange ymin ymax
-        cscale = Scale cmin cmax [cmin..cmax] colourScheme
+  where yscale = reverseScaleMap $ niceLinearRange ymin ymax
+        cscale = Scale cmin cmax [cmin..cmax] colourScheme show
         pscale = linearRange 0 1 pmin pmax
-        hscale = Scale hmin hmax [hmin..hmax] shapeScale
+        hscale = Scale hmin hmax [hmin..hmax] shapeScale show
         --sscale = niceLinearRange smin smax
         xmin = mma aes p l minimum x
         xmax = mma aes p l maximum x

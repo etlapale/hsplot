@@ -14,14 +14,16 @@ Library
                         bytestring == 0.10.*,
                         cairo == 0.12.*,
                         cassava == 0.2.*,
+                        time == 1.4.*,
                         vector == 0.10.*,
                         template-haskell == 2.8.*
   Exposed-modules:      Graphics.HsPlot,
-                        Graphics.HsPlot.Algorithms,
                         Graphics.HsPlot.Base,
                         Graphics.HsPlot.Cairo,
                         Graphics.HsPlot.Colours,
+                        Graphics.HsPlot.Render,
                         Graphics.HsPlot.Samples,
+                        Graphics.HsPlot.Scales,
                         Graphics.HsPlot.TH
 
 Executable              ggplot-book
@@ -31,5 +33,6 @@ Executable              ggplot-book
                         bytestring == 0.10.*,
                         cairo == 0.12.*,
                         cassava == 0.2.*,
+                        time == 1.4.*,
                         vector == 0.10.*,
                         template-haskell == 2.8.*

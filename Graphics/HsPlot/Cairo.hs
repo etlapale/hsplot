@@ -75,13 +75,13 @@ render w h p = do
   let ascent = fontExtentsAscent ftExt
   forM_ (scaleTicks $ scaleX p) $ \x -> do
     moveTo (lw * (realToFrac ((scaleMap $ scaleX p) x) :: Double)) (lh + ascent + xticksmargin)
-    let tickLabel = show x
+    let tickLabel = scaleFmt (scaleX p) x
     tExt <- textExtents tickLabel
     relMoveTo (-textExtentsWidth tExt/2) 0
     showText tickLabel
   forM_ (scaleTicks $ scaleY p) $ \y -> do
     moveTo 0 (lh * (scaleMap $ scaleY p) y)
-    let tickLabel = show y
+    let tickLabel = scaleFmt (scaleY p) y
     tExt <- textExtents tickLabel
     relMoveTo (-textExtentsWidth tExt - yticksmargin) (textExtentsHeight tExt / 2)
     showText tickLabel
