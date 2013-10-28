@@ -153,17 +153,26 @@ niceDayScale min max = Scale { scaleMin = min
                 | d < 548   = (3, Months)
                 | d < 731   = (4, Months)
                 | d < 1096  = (6, Months)
-                | otherwise = (niceInteger(niceSpacing `div` 365), Years)
+                | otherwise = (yearSpacing, Years)
         fmt :: (Integer, TimeGranularity) -> (Day -> String)
         fmt (_, Years) = (\(y,_,_) -> show y) . toGregorian
         ticks :: (Integer, TimeGranularity) -> [Day]
         ticks (_, Days) = [min..max]
         ticks (n, Years) = unsafePerformIO $ do
-          let ts = filter (>=min) $ takeWhile (<=max) [ModifiedJulianDay ((n * 365 * i) + niceMin) | i <- [0..]]
+          putStrLn $ "Year min: " ++ show ymin
+          putStrLn $ "Day scale: " ++ show yearSpacing ++ " years"
+          let ts = filter (>=min) $ takeWhile (<=max)
+                     [(i*yearSpacing) `addGregorianYearsClip` ymin | i <- [0..]]
           putStrLn $ "niceInt " ++ show spacing
           putStrLn $ "Tick (" ++ show n ++ ", Years) => " ++ show ts
           return ts
-        (niceMin,niceMax,niceSpacing) = (niceRange' (toModifiedJulianDay min) (toModifiedJulianDay max)) :: (Integer, Integer, Integer)
+        yearSpacing = floor $ niceFloating $ realToFrac daySpacing / 365.25
+        daySpacing = niceInteger $ niceInteger (dmax - dmin) `div` 5
+        dmin = toModifiedJulianDay min
+        dmax = toModifiedJulianDay max
+        ymin = case toGregorian min of 
+                 (y,_,_) -> fromGregorian (zmod y yearSpacing) 1 1
+        zmod x n = n * (x `div` n)
 
 normaliseDays :: Day -> Day -> Day -> Double
 normaliseDays min max = (/(realToFrac $ diffDays max min)) . realToFrac . (`diffDays` min)
