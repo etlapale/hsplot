@@ -11,17 +11,20 @@
 
 {-# LANGUAGE DefaultSignatures #-}
 
-module Graphics.HsPlot.Algorithms (
-  Rangeable(..)
+module Graphics.HsPlot.Scales (
+  Scale(..), Rangeable(..),
+  linearRange, niceLinearRange, reverseScaleMap
 )
 where
 
 import Data.Time
+import System.IO.Unsafe
 
 data Scale x t = Scale { scaleMin   :: x
                        , scaleMax   :: x
                        , scaleTicks :: [x]
                        , scaleMap   :: x -> t
+                       , scaleFmt   :: x -> String
                        }
 
 class NiceNum a where
@@ -37,6 +40,12 @@ instance NiceNum Double where
   niceCeiling = realToFrac . ceiling
 
 instance NiceNum Int where
+  niceDiv = div
+  niceNum = niceInteger
+  niceFloor = floor
+  niceCeiling = ceiling
+
+instance NiceNum Integer where
   niceDiv = div
   niceNum = niceInteger
   niceFloor = floor
@@ -65,6 +74,22 @@ class Rangeable a where
   default niceRange :: (NiceNum a, Real a) => a -> a -> (a,a,a)
   niceRange = niceRange'
 
+  niceScale :: a -> a -> Scale a Double
+  default niceScale :: (NiceNum a, Real a, Enum a, Show a, Fractional t)
+                    => a -> a -> Scale a t
+  niceScale min max = Scale { scaleMin = min
+                            , scaleMax = max
+                            , scaleTicks = ticks
+                            , scaleMap = normalise min max
+                            , scaleFmt = show
+                            }
+    where (niceMin,niceMax,niceSpacing) = niceRange min max
+          ticks = filter (>=min) $ takeWhile (<=max) [niceMin + niceSpacing * i | i <- [0..]]
+
+normalise :: (Real a, Num a, Fractional t) => a -> a -> a -> t
+normalise min max = (/(realToFrac $ max-min)) . realToFrac . subtract min
+
+
 instance Rangeable Double where
 
 instance Rangeable Int where
@@ -78,25 +103,71 @@ niceRange' min max = (niceMin,niceMax,spacing)
         range = niceInteger (max - min)
         maxTicks = 6
 
-linearRange :: (Real x, Fractional t)
+linearRange :: (Real x, Show x, Fractional t)
             => x -> x -> x -> x -> Scale x t
-linearRange imin imax min max = Scale { scaleMin = min
-                            , scaleMax = max
-                            , scaleTicks = [min,max]
-                            , scaleMap = if min == max && min >= imin && min <= imax
-                                         then realToFrac
-                                         else (/(realToFrac $ max-min)) . realToFrac . (subtract min)
-                            }
+linearRange imin imax min max =
+  Scale { scaleMin = min
+        , scaleMax = max
+        , scaleTicks = [min,max]
+        , scaleMap = if min == max && min >= imin && min <= imax
+                     then realToFrac
+                     else (/(realToFrac $ max-min)) . realToFrac . (subtract min)
+        , scaleFmt = show
+        }
         
-niceLinearRange :: (Rangeable x, Real x, Enum x, Fractional t)
+niceLinearRange :: (Rangeable x, Real x, Enum x, Show x, Fractional t)
                 => x -> x -> Scale x t
 niceLinearRange min max = Scale { scaleMin = min
                                 , scaleMax = max
                                 , scaleTicks = ticks
-                                , scaleMap = (/(realToFrac $ max-min)) . realToFrac . subtract min
+                                , scaleMap = normalise min max
+                                , scaleFmt = show
                                 }
   where (niceMin,niceMax,niceSpacing) = niceRange min max
         ticks = filter (>=min) $ takeWhile (<=max) [niceMin + niceSpacing * i | i <- [0..]]
 
 reverseScaleMap :: Num t => Scale x t -> Scale x t
 reverseScaleMap s = s { scaleMap = (1-) . scaleMap s }
+
+instance Rangeable Day where
+  niceRange = undefined
+  niceScale = niceDayScale
+
+data TimeGranularity = Days | Weeks | Months | Years
+  deriving (Eq, Ord, Enum, Show)
+
+niceDayScale :: Day -> Day -> Scale Day Double
+niceDayScale min max = Scale { scaleMin = min
+                             , scaleMax = max
+                             , scaleTicks = ticks spacing
+                             , scaleMap = normaliseDays min max
+                             , scaleFmt = fmt spacing
+                             }
+  where d = max `diffDays` min
+        spacing :: (Integer, TimeGranularity)
+        spacing | d < 7     = (1, Days)
+                | d < 42    = (1, Weeks)
+                | d < 84    = (2, Weeks)
+                | d < 180   = (1, Months)
+                | d < 366   = (2, Months)
+                | d < 548   = (3, Months)
+                | d < 731   = (4, Months)
+                | d < 1096  = (6, Months)
+                | otherwise = (niceInteger(niceSpacing `div` 365), Years)
+        fmt :: (Integer, TimeGranularity) -> (Day -> String)
+        fmt (_, Years) = (\(y,_,_) -> show y) . toGregorian
+        ticks :: (Integer, TimeGranularity) -> [Day]
+        ticks (_, Days) = [min..max]
+        ticks (n, Years) = unsafePerformIO $ do
+          let ts = filter (>=min) $ takeWhile (<=max) [ModifiedJulianDay ((n * 365 * i) + niceMin) | i <- [0..]]
+          putStrLn $ "niceInt " ++ show spacing
+          putStrLn $ "Tick (" ++ show n ++ ", Years) => " ++ show ts
+          return ts
+        (niceMin,niceMax,niceSpacing) = (niceRange' (toModifiedJulianDay min) (toModifiedJulianDay max)) :: (Integer, Integer, Integer)
+
+normaliseDays :: Day -> Day -> Day -> Double
+normaliseDays min max = (/(realToFrac $ diffDays max min)) . realToFrac . (`diffDays` min)
+
+    where spacing = niceInteger $ numDays `div` (maxTicks - 1)
+          numDays = diffDays max min
+          maxTicks = 6

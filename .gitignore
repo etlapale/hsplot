@@ -5,3 +5,4 @@ bla.*
 Session.vim
 fig*.png
 dist
+.R*

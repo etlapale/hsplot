@@ -2,7 +2,7 @@ module Graphics.HsPlot.Colours (
   lch2luv, lch2rgb, luv2xyz, xyz2rgb,
   uncurry3
 ) where
-
+        
 -- |Convert a CIE XYZ colour to sRGB.
 xyz2rgb :: (Ord a, Floating a) => a -> a -> a -> (a,a,a)
 xyz2rgb x y z = (f r, f g, f b)

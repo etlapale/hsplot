@@ -19,7 +19,8 @@ module Graphics.HsPlot (
 )
 where
 
-import Graphics.HsPlot.Algorithms as HsPlot
 import Graphics.HsPlot.Base as HsPlot
 import Graphics.HsPlot.Cairo as HsPlot
 import Graphics.HsPlot.Colours as HsPlot
+import Graphics.HsPlot.Render as HsPlot
+import Graphics.HsPlot.Scales as HsPlot

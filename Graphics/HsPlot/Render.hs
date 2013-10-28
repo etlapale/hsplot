@@ -14,6 +14,12 @@ module Graphics.HsPlot.Render (
 )
 where
 
+import Data.Maybe
+import Data.Foldable
+import Data.Traversable
+
+import Graphics.HsPlot.Base
+
 type PlotPoint = (Double, Double, Colour, Double, Shape)
 
 -- |Convert a points in a Layer to a Traversable of PlotPoint's.
