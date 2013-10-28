@@ -17,3 +17,6 @@ main = do
   de <- economics
   renderToPNG 500 300 "fig2.14-b.png" $
     plot de (aes {x=date, y=uempmed}) [lineLayer]
+  dc <- mtcars
+  renderToPNG 500 300 "fig3.1.png" $
+    plot dc (aes {x=displ, y=hwy, colour=Factor . cyl}) [pointLayer]
